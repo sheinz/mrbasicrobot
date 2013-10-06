@@ -2,13 +2,6 @@
 #define __CMotorPWM_H__
 
 #include <inttypes.h>
-#include <avr/interrupt.h>
-
-// forward declarations for interrupts
-extern "C" void TIMER2_COMP_vect(void) __attribute__ ((signal));
-extern "C" void TIMER2_OVF_vect(void) __attribute__ ((signal));
-
-
 
 class CMotorPWM
 {
@@ -48,30 +41,15 @@ public:
 private:
 
    CMotorPWM();
-   // friend interrupts
-   friend void TIMER2_COMP_vect(void);
-   friend void TIMER2_OVF_vect(void);
 
    static void setDirection(const eMotor motor, const bool out1, const bool out2);
 
-   static void updateMotorsSpeed(void);
+   static void setMotorPwm(const eMotor motor, uint8_t speed);
 
 
    static eMotorMode mMotorMode[MOTOR_COUNT];
    static uint8_t mMotorSpeed[MOTOR_COUNT];
    
-   struct PwmChannel
-   {
-      uint8_t value;
-      uint8_t mask;     // the bits which is set should be clear at next compare match
-   };
-
-   static PwmChannel mPwm[MOTOR_COUNT];
-   static int8_t mCurrentPwm; 
-
-   static PwmChannel mPwmUpd[MOTOR_COUNT];
-   static volatile bool mUpdate;    // if true the mPwm will be update
-
 };
 
 #endif // __CMotorPWM_H__

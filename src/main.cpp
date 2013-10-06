@@ -56,16 +56,16 @@ int main(void)
 
    while (1)
    {
-	   CCarCtrl::setMovement(0, 60);
+	   CCarCtrl::setMovement(0, 100);
 	   CMicroTimer::sleep(1000);
-//	   CCarCtrl::setMovement(60, 60);
-//	   CMicroTimer::sleep(1000);
-//	   CCarCtrl::setMovement(-60, 60);
-//	   CMicroTimer::sleep(1000);
-//	   CCarCtrl::setMovement(0, -60);
-//	   CMicroTimer::sleep(1000);
-//	   CCarCtrl::setMovement(-60, -60);
-//	   CMicroTimer::sleep(2000);
+	   CCarCtrl::setMovement(60, 100);
+	   CMicroTimer::sleep(1000);
+	   CCarCtrl::setMovement(-60, 100);
+	   CMicroTimer::sleep(1000);
+	   CCarCtrl::setMovement(0, -100);
+	   CMicroTimer::sleep(1000);
+	   CCarCtrl::setMovement(-60, -100);
+	   CMicroTimer::sleep(2000);
    }
 
    while (1)

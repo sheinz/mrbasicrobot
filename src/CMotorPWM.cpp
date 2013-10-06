@@ -6,7 +6,6 @@
 
 #include "CMotorPWM.h"
 #include <avr/io.h>
-#include <avr/interrupt.h>
 
 
 // hardware configuration
@@ -35,84 +34,8 @@
 //    Motor A  - PB1
 //    Motor B  - PB2
 
-
-#define START_TIMER()      TCCR2 |= _BV(CS21) | _BV(CS22)   // Normal mode, prescaler F_CPU/8
-#define STOP_TIMER()       TCCR2 = 0            // Stop timer
-
-// clear the interrupt flag in case the interrupt has already occurred
-#define ENABLE_OVERFLOW_INT()      TIFR |= _BV(TOV2); TIMSK |= _BV(TOIE2); TIMSK &= ~_BV(OCIE2)        // enable overflow
-#define ENABLE_COMPARE_INT()       TIFR |= _BV(OCF2); TIMSK |= _BV(OCIE2); TIMSK &= ~_BV(TOIE2)    
-
 CMotorPWM::eMotorMode CMotorPWM::mMotorMode[CMotorPWM::MOTOR_COUNT];
 uint8_t CMotorPWM::mMotorSpeed[CMotorPWM::MOTOR_COUNT];
-CMotorPWM::PwmChannel CMotorPWM::mPwm[CMotorPWM::MOTOR_COUNT];
-int8_t CMotorPWM::mCurrentPwm;
-CMotorPWM::PwmChannel CMotorPWM::mPwmUpd[CMotorPWM::MOTOR_COUNT];
-volatile bool CMotorPWM::mUpdate;
-
-
-// ----------------------------------------------------------------------------
-
-ISR(TIMER2_COMP_vect)
-{
-   STOP_TIMER();
-   TCNT2 = OCR2;     // reset the interrupt overhead
-
-   PWM_PORT &= ~(CMotorPWM::mPwm[CMotorPWM::mCurrentPwm].mask);
-  
-   CMotorPWM::mCurrentPwm++;
-
-   if (  (CMotorPWM::mCurrentPwm < CMotorPWM::MOTOR_COUNT) && 
-         (CMotorPWM::mPwm[CMotorPWM::mCurrentPwm].mask != 0)   )
-   {
-      OCR2 = CMotorPWM::mPwm[CMotorPWM::mCurrentPwm].value;
-   }
-   else
-   {
-      //if (OCR2 == 0xFF) TCNT2 = 0xFF;     // so the next interrupt will be immediately 
-
-      CMotorPWM::mCurrentPwm = 0;
-      ENABLE_OVERFLOW_INT();
-   }  
-
-
-   START_TIMER();
-}
-
-// ----------------------------------------------------------------------------
-
-ISR(TIMER2_OVF_vect)
-{   
-   uint8_t mask = 0;
-   STOP_TIMER();
-   TCNT2 = 0;        // reset interrupt overhead
-
-   // update 
-   if (CMotorPWM::mUpdate)
-   {
-      PORTC |= _BV(PC3);
-
-      for (uint8_t i = 0; i < CMotorPWM::MOTOR_COUNT; i++)
-      {
-         CMotorPWM::mPwm[i].mask = CMotorPWM::mPwmUpd[i].mask;
-         CMotorPWM::mPwm[i].value = CMotorPWM::mPwmUpd[i].value;
-      }
-      CMotorPWM::mUpdate = false;
-   }
-   
-   if (CMotorPWM::mPwm[0].value == 0)
-   {
-      mask = CMotorPWM::mPwm[0].mask;
-      CMotorPWM::mCurrentPwm = 1;   
-   }
-   
-   OCR2 = CMotorPWM::mPwm[CMotorPWM::mCurrentPwm].value;    // it can be 0xFF
-
-   PWM_PORT |= (PWM_A_PIN | PWM_B_PIN) & (~mask);  // set all pins except for the value=0
-   
-   ENABLE_COMPARE_INT();
-   START_TIMER();
-}
 
 // ----------------------------------------------------------------------------
 
@@ -129,24 +52,18 @@ void CMotorPWM::init(void)
 
    for (uint8_t i = 0; i < MOTOR_COUNT; i++)
    {
-      mMotorSpeed[i] = 127;
+      mMotorSpeed[i] = 0;
       mMotorMode[i] = IDLE; 
    }
-   
-   mPwm[0].mask = PWM_A_PIN | PWM_B_PIN;
-   mPwm[0].value = 127;
-   mPwm[1].mask = 0;    // 0 means this is the terminal element
-   mPwm[1].value = 0xFF;
-   mPwmUpd[0] = mPwm[0];
-   mPwmUpd[1] = mPwm[1];
-   mUpdate = false;
 
-   CMotorPWM::mCurrentPwm = 0;
+   OCR1AL = 0;
+   OCR1BL = 0;
 
-   TCNT2 = 250;         // next interrupt will be the overflow
-   OCR2 = 127;          // somewhere in the middle
-   ENABLE_OVERFLOW_INT();
-   START_TIMER();
+   // Clear OC1A/OC1B on Compare Match
+   // Fast PWM, 8-bit
+   TCCR1A = _BV(COM1A1) | _BV(COM1B1) | _BV(WGM10);
+   // Frequency = F_CPU/8
+   TCCR1B = _BV(WGM12) | _BV(CS11);// | _BV(CS10);
 }
 
 // ----------------------------------------------------------------------------
@@ -159,24 +76,22 @@ void CMotorPWM::setMotor(const CMotorPWM::eMotor motor, const CMotorPWM::eMotorM
 
       if (mode == IDLE)
       {
-         mMotorSpeed[motor] = 0;
-         updateMotorsSpeed();
+         setMotorPwm(motor, 0);
       }
       else if (mode == FORWARD)
       {
          setDirection(motor, true, false);
-         updateMotorsSpeed();
+         setMotorPwm(motor, mMotorSpeed[motor]);
       }
       else if (mode == BACKWARD)
       {
          setDirection(motor, false, true);
-         updateMotorsSpeed();
+         setMotorPwm(motor, mMotorSpeed[motor]);
       }
       else if (mode == BRAKE)
       {
          setDirection(motor, false, false);
-         mMotorSpeed[motor] = 0xFF;
-         updateMotorsSpeed();
+         setMotorPwm(motor, 0xFF);     // full power stop
       }
    }   
 }
@@ -194,38 +109,20 @@ void CMotorPWM::setMotor(const CMotorPWM::eMotor motor, const CMotorPWM::eMotorM
 
 // ----------------------------------------------------------------------------
 
-void CMotorPWM::updateMotorsSpeed(void)
+void CMotorPWM::setMotorPwm(const CMotorPWM::eMotor motor, uint8_t speed)
 {
-   while (mUpdate);     // wait untel the previous update cycle ends
-
-   if (mMotorSpeed[0] < mMotorSpeed[1])
+   if (motor == MOTOR_A)
    {
-      mPwmUpd[0].value = mMotorSpeed[0];
-      mPwmUpd[0].mask = PWM_A_PIN;
-      mPwmUpd[1].value = mMotorSpeed[1];
-      mPwmUpd[1].mask = PWM_B_PIN;
+      OCR1AL = speed;
    }
-   else if (mMotorSpeed[0] > mMotorSpeed[1])
+   else
    {
-      mPwmUpd[0].value = mMotorSpeed[1];
-      mPwmUpd[0].mask = PWM_B_PIN;
-      mPwmUpd[1].value = mMotorSpeed[0];
-      mPwmUpd[1].mask = PWM_A_PIN;
+      OCR1BL = speed;
    }
-   else     // equal
-   {
-      mPwmUpd[0].value = mMotorSpeed[0];
-      mPwmUpd[0].mask = PWM_B_PIN | PWM_A_PIN;
-      mPwmUpd[1].value = 0xFF;
-      mPwmUpd[1].mask = 0;
-   }
-
-   uint8_t sreg = SREG;
-   cli();
-   mUpdate = true;      // safe set the flag
-   SREG = sreg;
 }
+
 // ----------------------------------------------------------------------------
+
 void CMotorPWM::setDirection(const eMotor motor, const bool out1, const bool out2)
 {
    if (motor == MOTOR_A)
@@ -299,7 +196,7 @@ uint8_t CMotorPWM::increaseMotorSpeed(const eMotor motor, uint8_t step)
          mMotorSpeed[motor] += step;
       }
 
-      updateMotorsSpeed();
+      setMotorPwm(motor, mMotorSpeed[motor]);
 
       return mMotorSpeed[motor];
    }
@@ -324,7 +221,7 @@ uint8_t CMotorPWM::decreaseMotorSpeed(const eMotor motor, uint8_t step)
          mMotorSpeed[motor] -= step;
       }
 
-      updateMotorsSpeed();
+      setMotorPwm(motor, mMotorSpeed[motor]);
 
       return mMotorSpeed[motor];
    }

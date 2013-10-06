@@ -6,6 +6,7 @@
 //#include "CRadioCtrlSignal.h"
 #include "CCarCtrl.h"
 #include "CRangeSensor.h"
+#include "CSingleServo.h"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -30,6 +31,8 @@ int main(void)
    CCarCtrl::init();
 
    CRangeSensor::init();
+
+   CSingleServo::init();
 
    uart_init();
 
@@ -56,29 +59,61 @@ int main(void)
 
    while (1)
    {
-	   CCarCtrl::setMovement(0, 100);
-	   CMicroTimer::sleep(1000);
-	   CCarCtrl::setMovement(60, 100);
-	   CMicroTimer::sleep(1000);
-	   CCarCtrl::setMovement(-60, 100);
-	   CMicroTimer::sleep(1000);
-	   CCarCtrl::setMovement(0, -100);
-	   CMicroTimer::sleep(1000);
-	   CCarCtrl::setMovement(-60, -100);
-	   CMicroTimer::sleep(2000);
+      CSingleServo::set(0);
+      CMicroTimer::sleep(200);
+
+      CSingleServo::set(-64);
+      CMicroTimer::sleep(200);
+
+      CSingleServo::set(-127);
+      CMicroTimer::sleep(200);
+
+       CSingleServo::set(-64);
+      CMicroTimer::sleep(200);
+
+      CSingleServo::set(0);
+      CMicroTimer::sleep(200);
+
+      CSingleServo::set(64);
+      CMicroTimer::sleep(200);
+
+      CSingleServo::set(127);
+      CMicroTimer::sleep(200);
+
+      CSingleServo::set(64);
+      CMicroTimer::sleep(200);
    }
+
+   int8_t servo = 0;
+   bool servo_inc = true;
+   uint8_t step = 32;
 
    while (1)
    {
-      uint32_t distance;
+//      uint32_t distance;
+//
+//      CRangeSensor::startMeasurement();
+//
+//      while (!CRangeSensor::isReady());      // wait till it ready
+//
+//      distance = CRangeSensor::getMeasurement();
+//
+//      printf("Distance: %d\n", distance);
 
-      CRangeSensor::startMeasurement();
 
-      while (!CRangeSensor::isReady());      // wait till it ready
+      // test servo
+      if (servo >= 127 - step && servo_inc)
+      {
+         servo_inc = false;
+      }
+      else if (servo <= -127 + step && !servo_inc)
+      {
+         servo_inc = true;
+      }
 
-      distance = CRangeSensor::getMeasurement();
+      servo = (servo_inc) ? servo + step : servo - step;
 
-      printf("Distance: %d\n", distance);
+      CSingleServo::set(servo);
 
       CMicroTimer::sleep(100);
    }

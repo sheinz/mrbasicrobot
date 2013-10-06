@@ -1,6 +1,6 @@
 # Hey Emacs, this is a -*- makefile -*-
 #----------------------------------------------------------------------------
-# WinAVR Makefile Template written by Eric B. Weddington, Jörg Wunsch, et al.
+# WinAVR Makefile Template written by Eric B. Weddington, Jï¿½rg Wunsch, et al.
 #
 # Released to the Public Domain
 #
@@ -84,7 +84,7 @@ SRC = uart.c
 
 
 # List C++ source files here. (C dependencies are automatically generated.)
-CPPSRC = $(TARGET).cpp CMotorPWM.cpp CMicroTimer.cpp CCarCtrl.cpp CRangeSensor.cpp
+CPPSRC = $(TARGET).cpp CMotorPWM.cpp CMicroTimer.cpp CCarCtrl.cpp CRangeSensor.cpp CSingleServo.cpp
 
 
 # List Assembler source files here.
